@@ -1,0 +1,5 @@
+data
+notebooks/credentials.yaml
+**.ipynb_checkpoints
+**/__pycache__
+**/cache
