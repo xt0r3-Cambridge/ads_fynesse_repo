@@ -2,3 +2,10 @@ pymysql
 urllib
 osmnx
 plotly
+pods
+seaborn
+matplotlib
+pandas
+numpy
+geopandas
+folium

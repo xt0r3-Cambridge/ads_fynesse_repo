@@ -1,3 +1,4 @@
 url: localhost
 port: 0
 local: True
+global_force_reload: False

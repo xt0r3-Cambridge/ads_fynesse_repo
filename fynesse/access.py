@@ -6,6 +6,8 @@ import zipfile
 import pymysql
 from datetime import datetime
 from pathlib import Path
+import pandas as pd
+import numpy as np
 
 class PriceDatasetManager(DatasetManager):
     @staticmethod
@@ -42,6 +44,27 @@ class PostcodeDatasetManager(DatasetManager):
 
         return [filepath for filepath in file_dir.iterdir() if filepath.suffix == '.csv']
 
+class MiscellaneousDataManager(DatasetManager):
+    """
+    This class takes care of all of the things that are not
+    part of the main assessment, e.g. the UK town boundary data
+    """
+    def fetch_uk_town_boundaries():
+        filepath = Path('../data/uk_town_boundaries.geojson')
+        if not filepath.exists() or not config['use_cache']:
+            DatasetManager.fetch_url(config['uk_town_boundaries'], filepath)
+        return filepath
+        
+    fetcher_list = [fetch_uk_town_boundaries]
+    
+    @staticmethod
+    def fetch_data():
+        paths = []
+        for fetcher in MiscellaneousDataManager.fetcher_list:
+            filepath = fetcher()
+            paths.append(filepath)
+        return paths
+
 class GlobalDatabaseManager:
     def __init__(self, username, password):
         self.url = config['url']
@@ -68,8 +91,15 @@ class GlobalDatabaseManager:
             client_flag=pymysql.constants.CLIENT.MULTI_STATEMENTS,
         )
 
-    def query(self, sql=None, table='prices_coordinates_data',  n=None):
-        return self.execute(f"SELECT * FROM {table} {f'WHERE {sql}' if sql is not None else ''} {f'LIMIT {n}' if n is not None else''}", return_results=True)
+    def query(self, where=None, cols='*', groupby=None, table='prices_coordinates_data', orderby=None, limit=None, as_pandas=True):
+        where = f"WHERE {where}" if where is not None else '' 
+        groupby = f'GROUP BY {groupby}' if groupby is not None else ''
+        limit = f'LIMIT {limit}' if limit is not None else ''
+        orderby = f'ORDER BY {orderby}' if orderby is not None else ''
+        res = self.execute(f"SELECT {cols} FROM {table} {where} {groupby} {orderby} {limit}", return_results=True)
+        if as_pandas:
+            res = pd.DataFrame(res).replace(r'^\s*$', np.nan, regex=True)
+        return res
 
 
 class DatasetLoader:
@@ -205,6 +235,8 @@ CREATE TABLE IF NOT EXISTS `prices_coordinates_data` (
 """
                        )
         self.add_auto_inrements('prices_coordinates_data')
+        self.db.execute("CREATE INDEX merged_price_index ON `prices_coordinates_data` (price);")
+        self.db.execute("CREATE INDEX merged_date_of_r_index ON `prices_coordinates_data` (price);")
 
         self.db.execute("""
 INSERT INTO `prices_coordinates_data` (

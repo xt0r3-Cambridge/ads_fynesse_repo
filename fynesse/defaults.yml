@@ -3,6 +3,9 @@ url: database-ads-kgs37.cgrre17yxw11.eu-west-2.rds.amazonaws.com
 port: 3306
 price_data_stem: http://prod.publicdata.landregistry.gov.uk.s3-website-eu-west-1.amazonaws.com/pp
 postode_data_url: https://www.getthedata.com/downloads/open_postcode_geo.csv.zip
+uk_town_boundaries: https://open-geography-portalx-ons.hub.arcgis.com/datasets/ons::major-towns-and-cities-dec-2015-boundaries-v2.geojson?where=1=1&outSR=%7B%22latestWkid%22%3A27700%2C%22wkid%22%3A27700%7D
 # Keep this as `True` if you want to make use of caching of downloaded fikes
 # Set to `False` if you want to redownload all data 
 use_cache: True
+local: False
+global_force_reload: False
