@@ -20,7 +20,7 @@ jobs:
       - run: pip install mock
       - run: pip install -r requirements.txt
       - run: python setup.py install
-      - run: coverage run access-tests.py
+      - run: coverage run access_tests.py
       - run: codecov
       - run: coveralls
             
