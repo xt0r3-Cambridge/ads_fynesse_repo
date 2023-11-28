@@ -1,8 +1,34 @@
 from datetime import datetime
-import pandas as pd
 from decimal import Decimal
 
+import pandas as pd
+
+
+def hash_recur(d):
+    """
+    Recursively hashes a dictionary.
+    @param d: The dictionary to hash.
+    @return: The hash of the dictionary.
+    """
+    try:
+        return hash(d)
+    except TypeError:
+        try:
+            return hash(frozenset(d))
+        except TypeError:
+            return hash(frozenset({(k, hash_recur(v)) for (k, v) in sorted(d.items())}))
+
+
 def coerce_args(func):
+    """
+    Coerces arguments to a function to the correct type.
+    The order of the coersions is as follows:
+    1. Numeric
+    2. Datetime
+    @param func: The function to coerce arguments for.
+    @return: The wrapped function.
+    """
+
     def is_datetime(arg):
         try:
             pd.Timestamp(arg)
@@ -12,7 +38,7 @@ def coerce_args(func):
 
     def coerce_datetime(arg):
         if is_datetime(arg):
-            pd.Timestamp(arg).date, True
+            return pd.Timestamp(arg).date(), True
         return arg, False
 
     def is_numeric(arg):
@@ -36,8 +62,8 @@ def coerce_args(func):
         return arg, False
 
     coersions = [
-        coerce_datetime,
         coerce_numeric,
+        coerce_datetime,
     ]
 
     def coerce(arg):
@@ -46,7 +72,7 @@ def coerce_args(func):
             if changed:
                 break
         return arg
-            
+
     def wrapper(*args, **kwargs):
         args = [coerce(arg) for arg in args]
         kwargs = {k: coerce(v) for k, v in kwargs.items()}

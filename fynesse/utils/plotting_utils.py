@@ -68,6 +68,9 @@ def bin_plot(
     x_bins=30,
     **kwargs,
 ):
+    """
+    Plots a binned scatterplot with a regression line.
+    """
     if col is None:
         return sns.regplot(
             data=data,

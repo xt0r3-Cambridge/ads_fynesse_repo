@@ -1,12 +1,19 @@
-from ..utils.io_utils import load
 import osmnx as ox
-from osmnx import _overpass, geocoder, utils_geo, osm_xml, utils, settings
 from geopandas.tools import sjoin
-from shapely import Point,Polygon, MultiPolygon
+from osmnx import _overpass, geocoder, osm_xml, settings, utils, utils_geo
+from shapely import MultiPolygon, Point, Polygon
+
+from ..utils.io_utils import load
 
 cols = load("osmnx_columns", cache_dir="./assets", use_module_root=True)
 
+
 def process_property_type(property_type):
+    """
+    Processes the property type to a format that can be used by the OSMNX library.
+    @param property_type: The property type to be processed.
+    @return: The processed property type.
+    """
     if property_type is None or property_type == "O":
         return "yes"
     elif property_type == "D":
@@ -18,7 +25,8 @@ def process_property_type(property_type):
     elif property_type == "F":
         return "apartments"
     raise ValueError(f"Unknown property type {property_type}")
-    
+
+
 # Retrieve POIs
 def get_buildings(
     data,
@@ -27,6 +35,15 @@ def get_buildings(
     box_height=0.01,
     property_type=None,
 ):
+    """
+    Retrieves buildings from the OSMNX library.
+    @param data: The data to be used for the retrieval. Must contain the following keys: town_city, country, latitude, longitude.
+    @param map: The map to be used for the retrieval.
+    @param box_width: The width of the bounding box.
+    @param box_height: The height of the bounding box.
+    @param property_type: The property type to be retrieved.
+    @return: The retrieved buildings.
+    """
     tags = {"building": True}
     if property_type is not None:
         tags = {"building": process_property_type(property_type)}
@@ -52,14 +69,6 @@ def get_buildings(
     return building_data
 
 
-
-
-
-
-
-
-
-
 ##############################################################################################################
 ############################### Extending the OSMNX library to use less memory ###############################
 ##############################################################################################################
@@ -79,16 +88,16 @@ understanding the analysis process.
 def _download_truncated_overpass_features(polygon, tags):
     """
     Retrieve OSM features within boundary from the Overpass API.
-    This function is slightly modified so that it truncates every response dataframe before 
+    This function is slightly modified so that it truncates every response dataframe before
     returning it, significantly decreasing the memory requirements
-    
+
     Parameters
     ----------
     polygon : shapely.geometry.Polygon
         boundaries to fetch elements within
     tags : dict
         dict of tags used for finding elements in the selected area
-    
+
     Yields
     ------
     response_json : dict
@@ -97,22 +106,37 @@ def _download_truncated_overpass_features(polygon, tags):
     # subdivide query polygon to get list of sub-divided polygon coord strings
     polygon_coord_strs = _overpass._make_overpass_polygon_coord_strs(polygon)
     # utils.log(f"Requesting data from API in {len(polygon_coord_strs)} request(s)")
-    
+
     # pass exterior coordinates of each polygon in list to API, one at a time
     for polygon_coord_str in polygon_coord_strs:
         query_str = _overpass._create_overpass_query(polygon_coord_str, tags)
         response_json = _overpass._overpass_request(data={"data": query_str})
         truncated_json = {}
-        for key in ['version', 'generator', 'osm3s']:
+        for key in ["version", "generator", "osm3s"]:
             truncated_json[key] = response_json[key]
-        truncated_json['elements'] = []
-        for element in  response_json['elements']:
-            if 'tags' in element.keys():
-                tags = element['tags']
-                truncated_tags = {key: value for (key, value) in tags.items() if key in ['geomery', 'building', 'amenity']}
-                element['tags'] = truncated_tags
-            truncated_json['elements'].append(element)
+        truncated_json["elements"] = []
+        for element in response_json["elements"]:
+            if "tags" in element.keys():
+                tags = element["tags"]
+                truncated_tags = {
+                    key: value
+                    for (key, value) in tags.items()
+                    if key
+                    in [
+                        "geometry",
+                        "building",
+                        "amenity",
+                        "leisure",
+                        "natural",
+                        "office",
+                        "public_transport",
+                        "tourism",
+                    ]
+                }
+                element["tags"] = truncated_tags
+            truncated_json["elements"].append(element)
         yield truncated_json
+
 
 def features_from_bbox(north, south, east, west, tags):
     """
@@ -368,6 +392,9 @@ def features_from_polygon(polygon, tags):
     response_jsons = _download_truncated_overpass_features(polygon, tags)
 
     # create GeoDataFrame from the downloaded data
-    return ox.features._create_gdf(response_jsons, polygon, tags).set_crs(epsg=4326)
-
-        
+    df = ox.features._create_gdf(response_jsons, polygon, tags)
+    try:
+        df = df.set_crs(epsg=4326)
+    except AttributeError:
+        pass
+    return df

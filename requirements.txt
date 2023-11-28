@@ -1,5 +1,5 @@
 pymysql
-urllib
+urllib3
 osmnx
 plotly
 pods
@@ -9,3 +9,6 @@ pandas
 numpy
 geopandas
 folium
+geopy
+nose
+pytest-warnings

@@ -74,6 +74,9 @@ def r2_score(y_true, y_pred, raise_na=True):
 
 
 def male(y_true, y_pred):
+    """
+    Returns the mean absolute log error.
+    """
     y_true = pd.Series(y_true).pipe(np.log10)
     y_pred = pd.Series(y_pred).pipe(np.log10)
 
