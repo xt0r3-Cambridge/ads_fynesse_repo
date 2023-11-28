@@ -13,19 +13,24 @@ import sklearn.feature_extraction"""
 
 """Place commands in this file to assess the data you have downloaded. How are missing values encoded, how are outliers encoded? What do columns represent, makes rure they are correctly labeled. How is the data indexed. Crete visualisation routines to assess the data (e.g. in bokeh). Ensure that date formats are correct and correctly timezoned."""
 
+
 def query(data):
     pass
 
-def data()
+
+def data():
     pass
+
 
 def view(data):
     """Provide a view of the data that allows the user to verify some aspect of its quality."""
     raise NotImplementedError
 
+
 def labelled(data):
     """Provide a labelled set of data ready for supervised learning."""
     raise NotImplementedError
+
 
 def get_tags_around(
     data,
