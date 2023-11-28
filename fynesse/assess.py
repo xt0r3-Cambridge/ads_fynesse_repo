@@ -705,8 +705,11 @@ def plot_tx_count_over_time(db):
             pd.Timestamp(f"{i}-06-01"),
             pd.Timestamp(f"{i}-09-01"),
             color="green",
+            label=f"{'_'*(i-2014)}prime season for home sales",
             alpha=0.5,
         )
+
+    axis.legend()
 
 
 def get_null_counts(db, force_reload=False):
@@ -875,14 +878,14 @@ def plot_outliers(db, force_reload=False):
         ax=next(ax),
         xlabel="n-th highest price",
         ylabel="price",
-        title="10000 highest prices",
+        title="10000 highest prices (~4million total)",
     )
     outlier_prices.query("dir == 'LOW'").price.plot(
         logy=True,
         ax=next(ax),
         xlabel="n-th highest price",
         ylabel="price",
-        title="10000 lowest prices",
+        title="10000 lowest prices (~4million total)",
     )
 
 

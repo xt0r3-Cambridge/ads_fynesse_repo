@@ -9,6 +9,10 @@ from tqdm import tqdm
 
 from .pandas_utils import aligned_concat
 
+def standardise(data, X=None):
+    if X is None:
+        X = data
+    return (data - X.mean()) / X.std()
 
 def parse_preds(y_true, y_pred):
     """
@@ -81,6 +85,21 @@ def male(y_true, y_pred):
     y_pred = pd.Series(y_pred).pipe(np.log10)
 
     return y_true.sub(y_pred).abs().mean()
+
+def mape(y_true, y_pred): 
+    """
+    Returns the mean absolute percentage error
+    """
+    y_true, y_pred = np.array(y_true), np.array(y_pred)
+    return np.mean(np.abs((y_true - y_pred) / y_true)) 
+
+
+def train(df, train_pct = 0.8):
+    return df.iloc[: int(len(df) * train_pct)].copy()
+
+
+def test(df, test_pct=0.2):
+    return df.iloc[int(len(df) * (1 - test_pct)) :].copy()
 
 
 def fit_regression(
