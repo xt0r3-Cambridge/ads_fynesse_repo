@@ -1,19 +1,3 @@
-# This file contains code for suporting addressing questions in the data
-
-"""# Here are some of the imports we might expect 
-import sklearn.model_selection  as ms
-import sklearn.linear_model as lm
-import sklearn.svm as svm
-import sklearn.naive_bayes as naive_bayes
-import sklearn.tree as tree
-
-import GPy
-import torch
-import tensorflow as tf
-
-# Or if it's a statistical analysis
-import scipy.stats"""
-
 """Address a particular question that arises from the data"""
 
 import geopandas as gpd
@@ -31,7 +15,12 @@ from .utils.stats_utils import male, mape, train, test, standardise
 from .utils.type_utils import coerce_args
 from .utils.pandas_utils import aligned_concat
 from .utils.plotting_utils import bin_plot
-from .assess import load_place_tags, get_tags_per_district, load_place_prices, plot_heatmap
+from .assess import (
+    load_place_tags,
+    get_tags_per_district,
+    load_place_prices,
+    plot_heatmap,
+)
 
 
 @coerce_args
@@ -86,7 +75,10 @@ def get_data_around(
     - outcode: The outcode (first group of the postcode) (e.g. SW1A).
     - plot_area: The area of the plot in square meters (e.g. 1000.0)
     """
-    def fetch_data_around(db, latitude, longitude, date, property_type, height, width, prevent_lookahead):
+
+    def fetch_data_around(
+        db, latitude, longitude, date, property_type, height, width, prevent_lookahead
+    ):
         """
         Fetches data around a particular point.
         @param db: The database to query.
@@ -101,7 +93,7 @@ def get_data_around(
         date_clause = ""
         if prevent_lookahead:
             date_clause = f"AND (`date_of_transfer` < '{pd.Timestamp(date)}')"
-            
+
         bbox_data = db.query(
             where=f"""(`latitude` BETWEEN {latitude - height} AND {latitude + height}) AND
     (`longitude` BETWEEN {longitude - height} AND {longitude + height}) AND
@@ -194,6 +186,20 @@ def get_data_around(
 def get_same_buildings_across_time(
     db, min_count=10, property_types=["F", "D", "S", "T"], force_reload=False
 ):
+    """
+    Gets buildings that have been sold at least twice.
+    @param db: The database to query.
+    @param min_count: The minimum number of times a building must have been sold.
+    @param property_types: The property types to query.
+    @param force_reload: Whether to force reload the data.
+    @return: The buildings that have been sold at least twice.
+
+    The data is composed of the following columns:
+    - log_price1: The log price of the first transaction.
+    - log_price2: The log price of the second transaction.
+    - date_diff_days: The difference in days between the two transactions.
+    - max_date: The maximum date of the two transactions.
+    """
     def fetch_same_buildings_across_time(db, min_count, property_types):
         """We are not returning any buildings of type Other"""
         df = pd.DataFrame(
@@ -258,46 +264,80 @@ def get_same_buildings_across_time(
 
 
 def fit_plot_area_model(world, db):
-    resold_buildings = get_same_buildings_across_time(db, min_count=2, property_types=["S", "D"])
+    """
+    Fits a model to the plot area data.
+    @param world: The world data to use.
+    @param db: The database to use.
+    @return: The fitted model.
+
+    The world data must have the following columns:
+    - building: The building type.
+    - geometry: The geometry of the building.
+    - plot_area: The area of the plot.
+    """
+
+    resold_buildings = get_same_buildings_across_time(
+        db, min_count=2, property_types=["S", "D"]
+    )
     resold_buildings = resold_buildings.sort_values(by="max_date").reset_index()
     resold_buildings = gpd.GeoDataFrame(
-        resold_buildings, geometry=gpd.points_from_xy(resold_buildings.longitude, resold_buildings.latitude), crs=4326
+        resold_buildings,
+        geometry=gpd.points_from_xy(
+            resold_buildings.longitude, resold_buildings.latitude
+        ),
+        crs=4326,
     )
-    
+
     world_price_data = (
-        world.assign(plot_area=lambda df: df.area)[["building", "geometry", "plot_area"]]
+        world.assign(plot_area=lambda df: df.area)[
+            ["building", "geometry", "plot_area"]
+        ]
         .to_crs(crs=4326)
         .sjoin(resold_buildings, how="right")
     )
     world_price_data = world_price_data.query("property_type in ['D', 'S']")
-    world_price_data = world_price_data.dropna().drop_duplicates(subset=["latitude", "longitude"])
+    world_price_data = world_price_data.dropna().drop_duplicates(
+        subset=["latitude", "longitude"]
+    )
     world_price_data = world_price_data.assign(
         log_price1_per_sqm=lambda df: df.log_price1 - np.log(df.plot_area),
         log_price2_per_sqm=lambda df: df.log_price2 - np.log(df.plot_area),
     )
     world_price_data
-        
+
     formatted_dataset = world_price_data[
         ["log_price1_per_sqm", "log_price2_per_sqm", "date_diff_days"]
     ].copy()
     X = formatted_dataset.pipe(train)
     X_test = formatted_dataset.pipe(test)
-    
+
     y = X.pop("log_price1_per_sqm")
     y_test = X_test.pop("log_price1_per_sqm")
-    
+
     model = sm.OLS(endog=y, exog=X)
 
     results = model.fit()
-    
-    print(f'''Out-of-sample Mean Absolute Log Error: {male(y_test, results.predict(X_test))}
+
+    print(
+        f"""Out-of-sample Mean Absolute Log Error: {male(y_test, results.predict(X_test))}
 Out-of-sample R2 Score: {r2_score(y_test, results.predict(X_test))}
-    '''
+    """
     )
-    
+
     return results
 
+
 def fit_inflation_model(data):
+    """
+    Fits a model to the inflation data.
+    @param data: The data to use.
+    @return: The fitted model.
+
+    The data must have the following columns:
+    - log_price1: The log price of the first transaction.
+    - log_price2: The log price of the second transaction.
+    - date_diff_days: The difference in days between the two transactions.
+    """
     df_with_date = data.copy()[["log_price1", "log_price2", "date_diff_days"]]
     inflation_X = df_with_date.copy().iloc[: int(len(df_with_date) * 0.8)]
     inflation_X_test = df_with_date.copy().iloc[int(len(df_with_date) * 0.8) :]
@@ -309,7 +349,15 @@ def fit_inflation_model(data):
     ).fit()
     return inflation_model
 
+
 def compare_regressions_with_and_without_inflation(data):
+    """
+    Compares the performance of a standard regression and a LASSO regression for
+    the second model's predictions.
+    @param dataset: The dataset to use.
+    @param tag_cols: The tag columns to use.
+    @return: The results of the comparison.
+    """
     no_date_df = data.copy()[["log_price1", "log_price2"]]
     no_date_X = no_date_df.copy().iloc[: int(len(no_date_df) * 0.8)]
     no_date_X_test = no_date_df.copy().iloc[int(len(no_date_df) * 0.8) :]
@@ -319,7 +367,7 @@ def compare_regressions_with_and_without_inflation(data):
         exog=no_date_X,
         endog=no_date_y,
     ).fit()
-    
+
     df_with_date = data.copy()[["log_price1", "log_price2", "date_diff_days"]]
     inflation_X = df_with_date.copy().iloc[: int(len(df_with_date) * 0.8)]
     inflation_X_test = df_with_date.copy().iloc[int(len(df_with_date) * 0.8) :]
@@ -329,15 +377,23 @@ def compare_regressions_with_and_without_inflation(data):
         exog=inflation_X,
         endog=inflation_y,
     ).fit()
-    
+
     regression_metrics = [
-    [r2_score(no_date_y_test, reg_no_date.predict(no_date_X_test)), male(no_date_y_test, reg_no_date.predict(no_date_X_test))],
-    [r2_score(inflation_y_test, inflation_model.predict(inflation_X_test)), male(inflation_y_test, inflation_model.predict(inflation_X_test))],
+        [
+            r2_score(no_date_y_test, reg_no_date.predict(no_date_X_test)),
+            male(no_date_y_test, reg_no_date.predict(no_date_X_test)),
+        ],
+        [
+            r2_score(inflation_y_test, inflation_model.predict(inflation_X_test)),
+            male(inflation_y_test, inflation_model.predict(inflation_X_test)),
+        ],
     ]
 
-    return pd.DataFrame(regression_metrics, index=['no inflation data', 'with inflation data'], columns = ['r2_score', 'male'])
-    
-    
+    return pd.DataFrame(
+        regression_metrics,
+        index=["no inflation data", "with inflation data"],
+        columns=["r2_score", "male"],
+    )
 
 
 def test_strategy(
@@ -421,6 +477,26 @@ def get_dataset_with_counts(
     db_key=["db_id"],
     force_reload=False,
 ):
+    """
+    Gets a dataset with the counts of the tags around each transaction.
+
+    The `world` parameter is a geopandas dataframe that must have the following columns:
+    - geometry: The geometry of the transaction.
+    - property_type: The property type of the transaction.
+    - price: The price of the transaction.
+    - date_of_transfer: The date of the transaction.
+    - postcode: The postcode of the transaction.
+
+    The `tags` parameter is a dictionary of the form:
+    {
+        "amenity": ["pub", "bar"],
+        "building": ["apartments"],
+    }
+
+    Note that the `tags` parameter is memorized, so it will only query the database once,
+    unless force_reload is set to True.
+    """
+
     def fetch_dataset_with_counts(
         world,
         place,
@@ -521,36 +597,63 @@ def get_dataset_with_counts(
 
     return dataset
 
+
 def model3_compare_lasso_and_standard_regression(dataset, tag_cols):
+    """
+    Compares the performance of a standard regression and a LASSO regression for
+    the third model's predictions.
+    @param dataset: The dataset to use.
+    @param tag_cols: The tag columns to use.
+    @return: The results of the comparison.
+    """
     reg_data = dataset.sort_values([("tx_data", "date_of_transfer")])[
         tag_cols + [("tx_data", "px_diff_from_median")]
     ].copy()
-    
+
     X = reg_data.pipe(train)
     y = X.pop(("tx_data", "px_diff_from_median"))
-    
+
     X_test = reg_data.pipe(test)
     y_test = X_test.pop(("tx_data", "px_diff_from_median"))
-    
+
     model = sm.OLS(endog=y, exog=X.pipe(standardise))
-    
+
     results = model.fit()
     results_lasso = model.fit_regularized(alpha=8002.16815)
-    
+
     results_lasso.params.pipe(lambda ser: ser[ser > 0])
 
     regression_results = [
-        [r2_score(y_test, results.predict(X_test.pipe(standardise, X=X))),
+        [
+            r2_score(y_test, results.predict(X_test.pipe(standardise, X=X))),
         ],
-        [r2_score(y_test, results_lasso.predict(X_test.pipe(standardise, X=X))),
-    ]
+        [
+            r2_score(y_test, results_lasso.predict(X_test.pipe(standardise, X=X))),
+        ],
     ]
 
-    return pd.DataFrame(regression_results, index=['OLS', 'LASSO'], columns=['outsample_r2_score']), results, results_lasso
+    return (
+        pd.DataFrame(
+            regression_results, index=["OLS", "LASSO"], columns=["outsample_r2_score"]
+        ),
+        results,
+        results_lasso,
+        X,
+    )
+
 
 def plot_pca_correlations_with_price(prior_counts):
+    """
+    Plots the correlations between the principal components and the price.
+
+    The `prior_counts` parameter is a dataframe that must have the following columns (note the MultiIndex):
+    - (price_data, price): The price of the transaction.
+    - (price_data, price_adj): The inflation-adjusted price of the transaction.
+    """
     X = prior_counts.copy()
-    y = aligned_concat(X.pop(("price_data", "price")), X.pop(("price_data", "price_adj")))
+    y = aligned_concat(
+        X.pop(("price_data", "price")), X.pop(("price_data", "price_adj"))
+    )
     pca = PCA(n_components=5).fit(X)
     components = aligned_concat(
         pd.DataFrame(pca.transform(X.div(X.std())), index=prior_counts.index).rename(
@@ -558,11 +661,19 @@ def plot_pca_correlations_with_price(prior_counts):
         ),
         y,
     )
-    return plot_heatmap(components.corr().loc[:, [('price_data', 'price'), ('price_data', 'price_adj')]]).set_title('Principle components vs price correlation')
+    return plot_heatmap(
+        components.corr().loc[:, [("price_data", "price"), ("price_data", "price_adj")]]
+    ).set_title("Principle components vs price correlation")
+
 
 def pca_vs_price_bin_plot(prior_counts):
+    """
+    Plots the first principal component against the price.
+    """
     X = prior_counts.copy()
-    y = aligned_concat(X.pop(("price_data", "price")), X.pop(("price_data", "price_adj")))
+    y = aligned_concat(
+        X.pop(("price_data", "price")), X.pop(("price_data", "price_adj"))
+    )
     pca = PCA(n_components=5).fit(X)
     components = aligned_concat(
         pd.DataFrame(pca.transform(X.div(X.std())), index=prior_counts.index).rename(
@@ -576,23 +687,35 @@ def pca_vs_price_bin_plot(prior_counts):
         ),
         x="PC00",
         y="log_px_adj",
-    ).set_title('Inflation-adjusted log price vs the value of the first principal component')
-    
+    ).set_title(
+        "Inflation-adjusted log price vs the value of the first principal component"
+    )
 
-    
-def get_tag_counts_with_median_price(place, db, tags, threshold=0, suffix_length=2, property_type='F'):
+
+def get_tag_counts_with_median_price(
+    place, db, tags, threshold=0, suffix_length=2, property_type="F"
+):
+    """
+    Gets the tag counts around each transaction in the database and the median price of the area.
+    An area is composed of the first n-2 characters of the postcode.
+
+    The `place` parameter is a geopandas dataframe with the following columns:
+    - geometry: The geometry of the transaction.
+    - property_type: The property type of the transaction.
+    - price: The price of the transaction.
+    - date_of_transfer: The date of the transaction.
+    - postcode: The postcode of the transaction.
+    """
     prior_data = get_tags_per_district(
         place,
         db,
         tags=tags,
         threshold=0,
         suffix_length=2,
-    )[
-        [(k, v) for k, vs in tags.items() for v in vs]
-    ].fillna(0)
+    )[[(k, v) for k, vs in tags.items() for v in vs]].fillna(0)
 
-    place_prices = load_place_prices(place, db) 
-    
+    place_prices = load_place_prices(place, db)
+
     median_px = (
         place_prices.query("property_type == @property_type")
         .assign(area_code=lambda df: df.postcode.str[:-suffix_length])
@@ -617,6 +740,27 @@ def get_dataset_with_counts_and_medians(
     force_reload=False,
     reload_counts=False,
 ):
+    """
+    Gets a dataset with the counts of the tags around each transaction and the median price of the area.
+    An area is composed of the first n-2 characters of the postcode.
+
+    The `world` parameter is a geopandas dataframe with the following columns:
+    - geometry: The geometry of the transaction.
+    - property_type: The property type of the transaction.
+    - price: The price of the transaction.
+    - date_of_transfer: The date of the transaction.
+    - postcode: The postcode of the transaction.
+
+    The `tags` parameter is a dictionary of the form:
+    {
+        "amenity": ["pub", "bar"],
+        "building": ["apartments"],
+    }
+
+    Note that the `tags` parameter is memorized, so it will only query the database once,
+    unless force_reload is set to True.
+    """
+
     def fetch_dataset_with_counts_and_medians(
         world,
         place,

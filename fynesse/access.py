@@ -119,6 +119,7 @@ class GlobalDatabaseManager:
             local_infile=True,
             cursorclass=pymysql.cursors.DictCursor,
             client_flag=pymysql.constants.CLIENT.MULTI_STATEMENTS,
+            connect_timeout=31536000,
         )
 
     def query(
@@ -445,46 +446,51 @@ CREATE TABLE IF NOT EXISTS `prices_coordinates_data` (
         )
         self.add_auto_inrements("prices_coordinates_data")
 
-        self.db.execute(
-            """
-INSERT INTO `prices_coordinates_data` (
-price,
-date_of_transfer,
-postcode,
-property_type,
-new_build_flag,
-tenure_type,
-locality,
-town_city,
-district,
-county,
-country,
-latitude,
-longitude
-)
-SELECT
-price,
-date_of_transfer,
-`pp_data`.postcode,
-property_type,
-new_build_flag,
-tenure_type,
-locality,
-town_city,
-district,
-county,
-country,
-latitude,
-longitude
-FROM (
- `pp_data`
- INNER JOIN
-     `postcode_data`
- ON 
-     `pp_data`.postcode = `postcode_data`.postcode
-)
-"""
-        )
+        max_id = self.db.query(cols='MAX(db_id) as `n_rows`', table='pp_data').n_rows.iloc[0]
+        print(max_id)
+
+        delta = 200000
+        for i in tqdm(range(0, max_id + 1, delta)):
+            self.db.execute(
+                f"""
+    INSERT INTO `prices_coordinates_data` (
+    price,
+    date_of_transfer,
+    postcode,
+    property_type,
+    new_build_flag,
+    tenure_type,
+    locality,
+    town_city,
+    district,
+    county,
+    country,
+    latitude,
+    longitude
+    )
+    SELECT
+    price,
+    date_of_transfer,
+    `pp_data`.postcode,
+    property_type,
+    new_build_flag,
+    tenure_type,
+    locality,
+    town_city,
+    district,
+    county,
+    country,
+    latitude,
+    longitude
+    FROM (
+     (SELECT * FROM `pp_data` WHERE `db_id` BETWEEN {i} AND {i + delta - 1}) `pp_data`
+     INNER JOIN
+         `postcode_data`
+     ON 
+         `pp_data`.postcode = `postcode_data`.postcode
+    )
+    """
+            )
 
         self.db.execute(
             "CREATE INDEX merged_price_index ON `prices_coordinates_data` (price);"
