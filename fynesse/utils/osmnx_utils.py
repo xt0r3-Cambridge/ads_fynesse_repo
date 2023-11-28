@@ -5,9 +5,6 @@ from shapely import MultiPolygon, Point, Polygon
 
 from ..utils.io_utils import load
 
-cols = load("osmnx_columns", cache_dir="./assets", use_module_root=True)
-
-
 def process_property_type(property_type):
     """
     Processes the property type to a format that can be used by the OSMNX library.
