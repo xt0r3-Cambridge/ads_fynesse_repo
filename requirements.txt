@@ -13,3 +13,4 @@ geopy
 nose
 pytest-warnings
 setuptools
+anyio==3.*
