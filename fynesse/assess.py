@@ -482,20 +482,6 @@ def get_house_prices_per_town(db, min_count=300):
         4. Filter out towns with less than min_count properties.
         5. Return the resulting table.
         """
-        data = db.execute(
-            """SELECT DISTINCT
-                med.town_city,
-                price_median,
-                count
-            FROM (
-                
-            ) med
-            LEFT JOIN (
- 
-            ) grp ON (med.town_city = grp.town_city);""",
-            return_results=True,
-        )
-
         med_prices = pd.DataFrame(db.execute(
             """SELECT
                     `town_city`,
