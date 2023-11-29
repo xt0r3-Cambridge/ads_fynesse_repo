@@ -461,7 +461,7 @@ def plot_log_prices_per_sq_m_per_property_type(world):
     plt.tight_layout(pad=5)
 
 
-def get_house_prices_per_town(db, min_count=300):
+def get_house_prices_per_town(db, min_count=300, force_reload=False):
     """
     Gets the house prices per town.
     @param db: The database to get the data from.
@@ -483,7 +483,7 @@ def get_house_prices_per_town(db, min_count=300):
         5. Return the resulting table.
         """
         med_prices = pd.DataFrame(db.execute(
-            """SELECT
+            """SELECT DISTINCT
                     `town_city`,
                     MEDIAN(price) OVER (PARTITION BY `town_city`) as `price_median`
                 FROM
@@ -495,6 +495,7 @@ def get_house_prices_per_town(db, min_count=300):
 
         counts = pd.DataFrame(db.execute(
             """SELECT
+                DISTINCT
                     `town_city`,
                     COUNT(*) as count
                 FROM
@@ -517,6 +518,7 @@ def get_house_prices_per_town(db, min_count=300):
         db=db,
         min_count=min_count,
         cache_dir="../cache/sql/",
+        force_reload=force_reload,
     )
 
     return data
@@ -555,7 +557,7 @@ def get_town_outlines(data):
     return towns
 
 
-def plot_choropleth(towns, price_per_town, init_lat=None, init_lon=None):
+def plot_choropleth(towns, price_per_town, init_lat=None, init_lon=None, zoom_start=6):
     """
     Plots a choropleth (a map with different colours for different areas) of the towns.
     @param towns: The towns to plot.
@@ -581,7 +583,7 @@ def plot_choropleth(towns, price_per_town, init_lat=None, init_lon=None):
         init_lon = float(dfx.geometry.centroid.x.mean())
 
     m = folium.Map(
-        location=[init_lat, init_lon], zoom_start=7, tiles="CartoDB positron"
+        location=[init_lat, init_lon], zoom_start=zoom_start, tiles="CartoDB positron"
     )
 
     folium.Choropleth(

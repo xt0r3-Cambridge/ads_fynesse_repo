@@ -580,7 +580,7 @@ def get_dataset_with_counts(
         return dataset
 
     dataset = get_or_load(
-        "dataset_with_counts",
+        f"dataset_with_counts_{pd.util.hash_pandas_object(world)}",
         fetch_dataset_with_counts,
         world=world,
         place=place,
@@ -806,12 +806,12 @@ def get_dataset_with_counts_and_medians(
         )
         # medians_frame
         dataset[("tx_data", "log_px_diff_from_median")] = np.log(
-            dataset_median[("tx_data", "price")]
-        ) - np.log(dataset_median[("tx_data", "nearby_median_per_property")])
+            dataset[("tx_data", "price")]
+        ) - np.log(dataset[("tx_data", "nearby_median_per_property")])
 
         dataset[("tx_data", "px_diff_from_median")] = (
-            dataset_median[("tx_data", "price")]
-            - dataset_median[("tx_data", "nearby_median_per_property")]
+            dataset[("tx_data", "price")]
+            - dataset[("tx_data", "nearby_median_per_property")]
         )
 
         return dataset
