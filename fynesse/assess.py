@@ -487,6 +487,7 @@ def get_house_prices_per_town(db, min_count=300):
                     `town_city`,
                     MEDIAN(price) OVER (PARTITION BY `town_city`) as `price_median`
                 FROM
+                    (SELECT `town_city` FROM `prices_coordinates_data` WHERE `date_of_transfer` > '2022-01-01')
                     `prices_coordinates_data`
             """,
             return_results=True,
@@ -497,6 +498,7 @@ def get_house_prices_per_town(db, min_count=300):
                     `town_city`,
                     COUNT(*) as count
                 FROM
+                    (SELECT `town_city` FROM `prices_coordinates_data` WHERE `date_of_transfer` > '2022-01-01')
                     `prices_coordinates_data`
                 GROUP BY
                     `town_city`""",
