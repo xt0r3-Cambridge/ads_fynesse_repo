@@ -488,25 +488,36 @@ def get_house_prices_per_town(db, min_count=300):
                 price_median,
                 count
             FROM (
-                SELECT
-                    town_city,
-                    MEDIAN(price) OVER (PARTITION BY town_city) as price_median
-                FROM
-                    prices_coordinates_data
+                
             ) med
             LEFT JOIN (
-                SELECT
-                    town_city,
-                    COUNT(*) as count
-                FROM
-                    prices_coordinates_data
-                GROUP BY
-                    town_city
+ 
             ) grp ON (med.town_city = grp.town_city);""",
             return_results=True,
         )
 
-        df = pd.DataFrame(data)
+        med_prices = pd.DataFrame(db.execute(
+            """SELECT
+                    `town_city`,
+                    MEDIAN(price) OVER (PARTITION BY `town_city`) as `price_median`
+                FROM
+                    `prices_coordinates_data`
+            """,
+            return_results=True,
+        ))
+
+        counts = pd.DataFrame(db.execute(
+            """SELECT
+                    `town_city`,
+                    COUNT(*) as count
+                FROM
+                    `prices_coordinates_data`
+                GROUP BY
+                    `town_city`""",
+            return_results=True,
+        ))
+
+        df = med_prices.merge(counts, how='inner', left_on='town_city', right_on='town_city')
 
         df = df.query("town_city.str.len() > 0 & count > @min_count")
 
